@@ -9,7 +9,7 @@
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-	
+
 	<!-- Icons -->
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
@@ -141,7 +141,7 @@
 		.info-panel p { color: rgba(255,255,255,0.9); font-size: 0.95rem; }
 		.info-panel b { color: #fff; font-weight: 600; }
 		.info-panel i { color: rgba(255,255,255,0.8); }
-		
+
 		/* Form Elements */
 		.input-group {
 			margin-bottom: 24px;
@@ -205,7 +205,7 @@
 			box-shadow: 0 8px 16px rgba(37, 99, 235, 0.4);
 		}
 		.btn-primary:active { transform: translateY(0); }
-		
+
 		.btn-outline {
 			background: rgba(255,255,255,0.1);
 			color: white;
@@ -327,7 +327,7 @@
 	</div>
 
 	<footer>
-		&copy; 2025 Subbagian Teknologi Informasi Perumdam Tirta Perwira Kabupaten Purbalingga
+		&copy; 2026 Subbagian Teknologi Informasi Perumdam Tirta Perwira Kabupaten Purbalingga
 	</footer>
 
 	<script>
@@ -377,10 +377,13 @@
 							}
 						}, 300);
 					},
-					error: function() {
+					error: function(jqXHR, textStatus, errorThrown) {
 						$('#ajax_loader').removeClass('active');
+						const errorMsg = jqXHR.responseJSON?.message ||
+										 textStatus ||
+										 'Terjadi kesalahan koneksi ke server';
 						$('#result-container').html(
-							`<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Terjadi kesalahan koneksi ke server.</div>`
+							`<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${errorMsg}</div>`
 						);
 					}
 				});

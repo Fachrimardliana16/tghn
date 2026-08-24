@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Exception;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use SoapClient;
 use SoapHeader;
@@ -38,6 +39,20 @@ class BillingSoapService
         $this->password  = config('billing.soap.password');
     }
 
+    // ── Konfigurasi SoapClient ─────────────────────────────────────────
+    // trace dinonaktifkan secara default untuk menghindari memory leak &
+    // exposure response di logs. Aktifkan hanya saat debugging via env: SOAP_TRACE=true
+    private function getSoapClientOptions(): array
+    {
+        return [
+            'trace'              => env('SOAP_TRACE', false),
+            'exceptions'         => true,
+            'cache_wsdl'         => env('SOAP_WSDL_CACHE', 'disk') === 'memory' ? WSDL_CACHE_MEMORY : WSDL_CACHE_DISK,
+            'soap_version'       => SOAP_1_1,
+            'connection_timeout' => 10,
+        ];
+    }
+
     /**
      * Ambil data tagihan dari server SOAP dan kembalikan sebagai array data murni.
      * Tidak ada HTML di sini — rendering sepenuhnya dilakukan oleh Blade.
@@ -51,13 +66,7 @@ class BillingSoapService
             // ── 1. Inisialisasi SOAP Client ─────────────────────────────────
             // WSDL_CACHE_DISK: kerangka WSDL hanya diunduh sekali lalu di-cache.
             // connection_timeout: putus koneksi jika server tidak merespons dalam 10 detik.
-            $soapClient = new SoapClient($this->wsdl, [
-                'trace'              => true,   // perlu true agar __getLastResponse() tidak null
-                'exceptions'         => true,
-                'cache_wsdl'         => WSDL_CACHE_DISK,
-                'soap_version'       => SOAP_1_1,
-                'connection_timeout' => 10,
-            ]);
+            $soapClient = new SoapClient($this->wsdl, $this->getSoapClientOptions());
 
             // ── 2. Set SOAP Header autentikasi ──────────────────────────────
             $soapClient->__setSoapHeaders([
@@ -151,9 +160,20 @@ class BillingSoapService
                ?? $this->findElement($xml, 'return')
                ?? $this->findElement($xml, 'result');
 
-        // Jika tidak ditemukan atau kosong → nomor tidak ada dalam sistem
-        if ($result === null || trim($result->asXML()) === '') {
-            return ['type' => 'not_found', 'customer_id' => $customerId];
+        // Jika tidak ditemukan atau kosong → cek database untuk membedakan lunas vs tidak terdaftar
+        // Cek khusus: jika result hanya berisi tag self-closing kosong <getListTagihanResult />
+        $resultXml = trim($result->asXML());
+        if ($result === null || $resultXml === '' || $resultXml === '<getListTagihanResult />' || $resultXml === '<getListTagihanResult/>') {
+            // API return kosong: cek database untuk membedakan lunas vs tidak terdaftar
+            $isRegistered = $this->isCustomerRegisteredInDatabase($customerId);
+
+            if ($isRegistered) {
+                // Pelanggan ada di database tapi API return kosong → dianggap Lunas
+                return ['type' => 'lunas', 'customer_id' => $customerId];
+            } else {
+                // Pelanggan tidak ada di database sama sekali → Not Found
+                return ['type' => 'not_found', 'customer_id' => $customerId];
+            }
         }
 
         // Parse inner XML dari result menggunakan SimpleXML (robust, tag-based)
@@ -300,5 +320,27 @@ class BillingSoapService
             if (strlen($part) <= 2) return $part;
             return substr($part, 0, 2) . str_repeat('*', strlen($part) - 3) . substr($part, -1);
         }, explode(' ', $name)));
+    }
+
+    /**
+     * Cek apakah pelanggan terdaftar di database newbilling.
+     * Digunakan ketika API SOAP return kosong untuk membedakan:
+     * - Pelanggan terdaftar tapi sudah lunas
+     * - Pelanggan tidak terdaftar sama sekali
+     */
+    private function isCustomerRegisteredInDatabase(string $customerId): bool
+    {
+        try {
+            $db = DB::connection('newbilling');
+            $count = $db->table('tbl_pelanggan')
+                ->where('nolangg', $customerId)
+                ->count();
+
+            return $count > 0;
+        } catch (\Exception $e) {
+            // Jika error koneksi database, asumsi tidak terdaftar
+            Log::warning('Database check failed: ' . $e->getMessage());
+            return false;
+        }
     }
 }

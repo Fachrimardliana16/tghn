@@ -34,6 +34,18 @@ class BillingController extends Controller
         $customerId = $request->input('nolangg');
         $cacheKey   = 'billing_' . $customerId;
 
+        // Cek cache dulu sebelum ke server SOAP (optimasi performa)
+        $cached = Cache::get($cacheKey);
+        if ($cached !== false) {
+            // Cache hit — cek tipe data; jika error sistem, jangan tampilkan dari cache
+            if (is_array($cached) && (($cached['type'] ?? '') === 'system_error' || $cached['type'] === 'not_found')) {
+                Cache::forget($cacheKey);
+                return response()->json($cached);
+            }
+            // Untuk tagihan & lunas, langsung return dari cache
+            return response()->json($cached);
+        }
+
         // Cache 5 menit; jika error sistem, jangan cache
         $data = Cache::remember($cacheKey, 300, function () use ($customerId) {
             return $this->billingService->checkBilling($customerId);
@@ -55,8 +67,8 @@ class BillingController extends Controller
         ];
 
         if ($data['type'] === 'lunas') {
+            $waktu = $this->formatWaktuIndonesia();
             $response['type'] = 'lunas';
-            $waktu = now()->locale('id')->isoFormat('dddd, DD MMMM YYYY HH:mm:ss');
             $response['message'] = '<div class="alert alert-success">'
                 . '<i class="fas fa-check-circle"></i> Nomor pelanggan <strong>' . htmlspecialchars($data['customer_id']) . '</strong> sudah lunas. Tidak ada tagihan yang harus dibayar.'
                 . '<div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.1); font-size:0.85rem; opacity:0.85;">'
@@ -64,7 +76,12 @@ class BillingController extends Controller
                 . '</div>';
         } elseif ($data['type'] === 'not_found') {
             $response['type'] = 'not_found';
-            $response['message'] = '<div class="alert alert-danger"><i class="fas fa-times-circle"></i> Nomor pelanggan tidak ditemukan dalam sistem.</div>';
+            $waktu = $this->formatWaktuIndonesia();
+            $response['message'] = '<div class="alert alert-danger">'
+                . '<i class="fas fa-times-circle"></i> Nomor pelanggan tidak ditemukan atau sudah lunas. Jika yakin nomor benar, silakan hubungi kami.'
+                . '<div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.1); font-size:0.85rem; opacity:0.85;">'
+                . '<i class="fas fa-clock"></i> Diperiksa pada: <strong>' . $waktu . '</strong></div>'
+                . '</div>';
         } elseif ($data['type'] === 'tagihan') {
             $response['type'] = 'tagihan';
             $response['message'] = $this->renderBillingTable($data);
@@ -75,6 +92,29 @@ class BillingController extends Controller
         }
 
         return response()->json($response);
+    }
+
+    /**
+     * Format waktu dalam Bahasa Indonesia.
+     */
+    private function formatWaktuIndonesia(): string
+    {
+        $hari = [
+            'Sunday' => 'Minggu', 'Monday' => 'Senin', 'Tuesday' => 'Selasa',
+            'Wednesday' => 'Rabu', 'Thursday' => 'Kamis', 'Friday' => 'Jumat', 'Saturday' => 'Sabtu',
+        ];
+        $bulan = [
+            'January' => 'Januari', 'February' => 'Februari', 'Maret' => 'Maret',
+            'April' => 'April', 'May' => 'Mei', 'June' => 'Juni',
+            'July' => 'Juli', 'August' => 'Agustus', 'September' => 'September',
+            'October' => 'Oktober', 'November' => 'November', 'December' => 'Desember',
+        ];
+
+        $now = now();
+        $namaHari = $hari[$now->format('l')] ?? $now->format('l');
+        $namaBulan = $bulan[$now->format('F')] ?? $now->format('F');
+
+        return $namaHari . ', ' . $now->format('d') . ' ' . $namaBulan . ' ' . $now->format('Y H:i:s');
     }
 
     /**
@@ -108,7 +148,7 @@ class BillingController extends Controller
         $html .= '</table>';
 
         // Waktu pengecekan — terpisah dari data pelanggan
-        $waktu = now()->format('l, d F Y H:i:s');
+        $waktu = $this->formatWaktuIndonesia();
         $html .= '<div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border); font-size:0.85rem; color:var(--text-muted);">';
         $html .= '<i class="fas fa-clock"></i> Diperiksa pada: <strong>' . $waktu . '</strong>';
         $html .= '</div>';
