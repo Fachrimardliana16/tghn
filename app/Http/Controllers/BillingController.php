@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Cache;
 
 class BillingController extends Controller
 {
-    protected $billingService;
+    protected BillingSoapService $billingService;
 
     public function __construct(BillingSoapService $billingService)
     {
@@ -22,30 +22,99 @@ class BillingController extends Controller
 
     public function check(Request $request)
     {
-        // Validasi input nomor pelanggan harus 8 digit angka
+        // Validasi: wajib 8 digit angka
         if (!$request->has('nolangg') || !preg_match('/^\d{8}$/', $request->input('nolangg'))) {
             return response()->json([
-                'status' => 'error',
-                'message' => 'Nomor Pelanggan harus berupa 8 digit angka.'
+                'type'    => 'validation_error',
+                'status'  => 'error',
+                'message' => 'Nomor Pelanggan harus berupa 8 digit angka.',
             ]);
         }
 
         $customerId = $request->input('nolangg');
-        $cacheKey = 'billing_' . $customerId;
+        $cacheKey   = 'billing_' . $customerId;
 
-        try {
-            // Implementasi Caching response SOAP (Durasi 5 menit = 300 detik)
-            $billingData = Cache::remember($cacheKey, 300, function () use ($customerId) {
-                return $this->billingService->checkBilling($customerId);
-            });
+        // Cache 5 menit; jika error sistem, jangan cache
+        $data = Cache::remember($cacheKey, 300, function () use ($customerId) {
+            return $this->billingService->checkBilling($customerId);
+        });
 
-            return response()->json($billingData);
-
-        } catch (\Exception $e) {
+        // Jangan simpan error sistem di cache
+        if (($data['type'] ?? '') === 'system_error') {
+            Cache::forget($cacheKey);
             return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage()
+                'type'    => 'system_error',
+                'status'  => 'error',
+                'message' => $data['message'] ?? 'Layanan tagihan tidak dapat dihubungi. Silakan coba beberapa saat lagi.',
             ]);
         }
+
+        // Format response untuk frontend Blade template
+        $response = [
+            'status' => 'success',
+        ];
+
+        if ($data['type'] === 'lunas') {
+            $response['type'] = 'lunas';
+            $waktu = now()->locale('id')->isoFormat('dddd, DD MMMM YYYY HH:mm:ss');
+            $response['message'] = '<div class="alert alert-success">'
+                . '<i class="fas fa-check-circle"></i> Nomor pelanggan <strong>' . htmlspecialchars($data['customer_id']) . '</strong> sudah lunas. Tidak ada tagihan yang harus dibayar.'
+                . '<div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.1); font-size:0.85rem; opacity:0.85;">'
+                . '<i class="fas fa-clock"></i> Diperiksa pada: <strong>' . $waktu . '</strong></div>'
+                . '</div>';
+        } elseif ($data['type'] === 'not_found') {
+            $response['type'] = 'not_found';
+            $response['message'] = '<div class="alert alert-danger"><i class="fas fa-times-circle"></i> Nomor pelanggan tidak ditemukan dalam sistem.</div>';
+        } elseif ($data['type'] === 'tagihan') {
+            $response['type'] = 'tagihan';
+            $response['message'] = $this->renderBillingTable($data);
+        } else {
+            $response['type'] = 'system_error';
+            $response['status'] = 'error';
+            $response['message'] = $data['message'] ?? 'Layanan tagihan tidak dapat dihubungi.';
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * Render tabel tagihan ke HTML untuk frontend Blade template.
+     */
+    private function renderBillingTable(array $data): string
+    {
+        $html = '<div class="alert alert-info"><h4><i class="fas fa-receipt"></i> Detail Tagihan</h4>';
+
+        // Customer info
+        $c = $data['customer'] ?? [];
+        $html .= '<p><strong>Nomor Pelanggan:</strong> ' . ($c['nomor'] ?? '-') . '</p>';
+        $html .= '<p><strong>Nama:</strong> ' . ($c['nama'] ?? '-') . '</p>';
+        $html .= '<p><strong>Alamat:</strong> ' . ($c['alamat'] ?? '-') . '</p>';
+        $html .= '<p><strong>Status:</strong> <span class="' . ($c['status_info']['class'] ?? 'text-secondary') . '">' . ($c['status_info']['description'] ?? '-') . '</span></p>';
+
+        // Periods table
+        $html .= '<table class="table mt-3">';
+        $html .= '<thead><tr><th>Periode</th><th>M3</th><th>Tagihan</th></tr></thead><tbody>';
+
+        foreach ($data['periods'] ?? [] as $p) {
+            $html .= '<tr>';
+            $html .= '<td>' . ($p['periode'] ?? '-') . '</td>';
+            $html .= '<td>' . ($p['m3'] ?? '-') . '</td>';
+            $html .= '<td><strong>' . ($p['tagihan_format'] ?? '0') . '</strong></td>';
+            $html .= '</tr>';
+        }
+
+        $html .= '</tbody>';
+        $html .= '<tfoot><tr><td colspan="3">Total: <strong>' . ($data['total_format'] ?? '0') . '</strong></td></tr></tfoot>';
+        $html .= '</table>';
+
+        // Waktu pengecekan — terpisah dari data pelanggan
+        $waktu = now()->format('l, d F Y H:i:s');
+        $html .= '<div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border); font-size:0.85rem; color:var(--text-muted);">';
+        $html .= '<i class="fas fa-clock"></i> Diperiksa pada: <strong>' . $waktu . '</strong>';
+        $html .= '</div>';
+
+        $html .= '</div>';
+
+        return $html;
     }
 }
