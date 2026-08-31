@@ -45,7 +45,7 @@ class BillingSoapService
     private function getSoapClientOptions(): array
     {
         return [
-            'trace'              => env('SOAP_TRACE', false),
+            'trace'              => env('SOAP_TRACE', true),
             'exceptions'         => true,
             'cache_wsdl'         => env('SOAP_WSDL_CACHE', 'disk') === 'memory' ? WSDL_CACHE_MEMORY : WSDL_CACHE_DISK,
             'soap_version'       => SOAP_1_1,
@@ -121,14 +121,62 @@ class BillingSoapService
                    ?? null;
         }
 
-        if ($result === null || trim((string) $result) === '') {
+        if ($result === null) {
             return ['type' => 'not_found', 'customer_id' => $customerId];
         }
 
-        // Jika berupa string XML, parse dengan SimpleXML
-        $xmlString = (string) $result;
-        if (strpos($xmlString, '<') !== false) {
-            return $this->parseXmlResponse('<envelope>' . $xmlString . '</envelope>', $customerId);
+        // Jika $result berupa string XML
+        if (is_string($result)) {
+            if (trim($result) === '') {
+                return ['type' => 'not_found', 'customer_id' => $customerId];
+            }
+            if (strpos($result, '<') !== false) {
+                return $this->parseXmlResponse('<envelope>' . $result . '</envelope>', $customerId);
+            }
+        }
+
+        // Jika $result berupa object (misal stdClass dari SoapClient)
+        if (is_object($result)) {
+            $array = json_decode(json_encode($result), true);
+            $mTagihan = $array['mTagihan'] ?? null;
+            if (is_array($mTagihan)) {
+                $totalTagihan = floatval($mTagihan['TotalTagihan'] ?? $mTagihan['totalTagihan'] ?? 0);
+                if ($totalTagihan <= 0) {
+                    return ['type' => 'lunas', 'customer_id' => $customerId];
+                }
+
+                $customer = [
+                    'nomor'  => (string) ($mTagihan['NoLangganan'] ?? $customerId),
+                    'nama'   => (string) ($mTagihan['Nama'] ?? ''),
+                    'alamat' => (string) ($mTagihan['Alamat'] ?? ''),
+                    'status' => (string) ($mTagihan['Status'] ?? ''),
+                ];
+
+                if ($customer['nama']) {
+                    $customer['nama'] = $this->maskName($customer['nama']);
+                }
+
+                $customer['status_info'] = self::STATUS_MAP[$customer['status']]
+                    ?? ['description' => 'Tidak Diketahui', 'class' => 'text-secondary'];
+
+                $periode = (string) ($mTagihan['Periode'] ?? '');
+                $m3      = (string) ($mTagihan['M3'] ?? '');
+
+                $periods = [[
+                    'periode'        => $this->formatPeriode($periode),
+                    'm3'             => $m3,
+                    'tagihan'        => $totalTagihan,
+                    'tagihan_format' => number_format($totalTagihan, 0, ',', '.'),
+                ]];
+
+                return [
+                    'type'         => 'tagihan',
+                    'customer'     => $customer,
+                    'periods'      => $periods,
+                    'total'        => $totalTagihan,
+                    'total_format' => number_format($totalTagihan, 0, ',', '.'),
+                ];
+            }
         }
 
         return ['type' => 'not_found', 'customer_id' => $customerId];

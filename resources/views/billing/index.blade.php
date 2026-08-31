@@ -154,7 +154,7 @@
 			margin-bottom: 8px;
 			color: var(--text-main);
 		}
-		input[type="number"] {
+		input[type="text"], input[type="number"] {
 			width: 100%;
 			padding: 16px 20px;
 			font-size: 1.1rem;
@@ -169,11 +169,13 @@
 			/* Remove spinner */
 			-moz-appearance: textfield;
 		}
+		input[type="text"]::-webkit-outer-spin-button,
+		input[type="text"]::-webkit-inner-spin-button,
 		input[type="number"]::-webkit-outer-spin-button,
 		input[type="number"]::-webkit-inner-spin-button {
 			-webkit-appearance: none; margin: 0;
 		}
-		input[type="number"]:focus {
+		input[type="text"]:focus, input[type="number"]:focus {
 			border-color: var(--primary);
 			box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
 			background: #fff;
@@ -300,7 +302,7 @@
 					@csrf
 					<div class="input-group" id="inputGroup">
 						<label for="nolangg">Nomor Pelanggan (8 Digit Angka)</label>
-						<input type="number" name="nolangg" id="nolangg" placeholder="Contoh: 12345678" required>
+						<input type="text" inputmode="numeric" pattern="\d{8}" maxlength="8" name="nolangg" id="nolangg" placeholder="Contoh: 12345678" required>
 						<div class="error-text"><i class="fas fa-exclamation-circle"></i> Nomor Pelanggan harus persis 8 digit angka.</div>
 					</div>
 					<button type="submit" class="btn btn-primary">
@@ -335,12 +337,14 @@
 			const inputEl = $('#nolangg');
 			const inputGroup = $('#inputGroup');
 
-			// Restrict input to 8 digits
+			// Restrict input to 8 digits and numbers only
 			inputEl.on('input', function() {
-				let val = $(this).val();
+				let val = $(this).val().replace(/\D/g, '');
 				if (val.length > 8) {
-					$(this).val(val.slice(0, 8));
+					val = val.slice(0, 8);
 				}
+				$(this).val(val);
+
 				if (val.length > 0 && val.length !== 8) {
 					inputGroup.addClass('input-error');
 				} else {

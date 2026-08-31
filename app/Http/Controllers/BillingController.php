@@ -34,25 +34,21 @@ class BillingController extends Controller
         $customerId = $request->input('nolangg');
         $cacheKey   = 'billing_' . $customerId;
 
-        // Cek cache dulu sebelum ke server SOAP (optimasi performa)
-        $cached = Cache::get($cacheKey);
-        if ($cached !== false) {
-            // Cache hit — cek tipe data; jika error sistem, jangan tampilkan dari cache
-            if (is_array($cached) && (($cached['type'] ?? '') === 'system_error' || $cached['type'] === 'not_found')) {
-                Cache::forget($cacheKey);
-                return response()->json($cached);
+        // 1. Ambil data dari cache jika ada
+        $data = Cache::get($cacheKey);
+
+        // 2. Jika tidak ada di cache (cache miss), panggil SOAP service
+        if ($data === null) {
+            $data = $this->billingService->checkBilling($customerId);
+
+            // Simpan ke cache 5 menit hanya jika bukan system_error
+            if (is_array($data) && ($data['type'] ?? '') !== 'system_error') {
+                Cache::put($cacheKey, $data, 300);
             }
-            // Untuk tagihan & lunas, langsung return dari cache
-            return response()->json($cached);
         }
 
-        // Cache 5 menit; jika error sistem, jangan cache
-        $data = Cache::remember($cacheKey, 300, function () use ($customerId) {
-            return $this->billingService->checkBilling($customerId);
-        });
-
-        // Jangan simpan error sistem di cache
-        if (($data['type'] ?? '') === 'system_error') {
+        // 3. Tangani error sistem jika terjadi
+        if (!is_array($data) || ($data['type'] ?? '') === 'system_error') {
             Cache::forget($cacheKey);
             return response()->json([
                 'type'    => 'system_error',
@@ -61,7 +57,7 @@ class BillingController extends Controller
             ]);
         }
 
-        // Format response untuk frontend Blade template
+        // 4. Format response untuk frontend Blade template
         $response = [
             'status' => 'success',
         ];
@@ -70,7 +66,7 @@ class BillingController extends Controller
             $waktu = $this->formatWaktuIndonesia();
             $response['type'] = 'lunas';
             $response['message'] = '<div class="alert alert-success">'
-                . '<i class="fas fa-check-circle"></i> Nomor pelanggan <strong>' . htmlspecialchars($data['customer_id']) . '</strong> sudah lunas. Tidak ada tagihan yang harus dibayar.'
+                . '<i class="fas fa-check-circle"></i> Nomor pelanggan <strong>' . htmlspecialchars($data['customer_id'] ?? $customerId) . '</strong> sudah lunas. Tidak ada tagihan yang harus dibayar.'
                 . '<div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.1); font-size:0.85rem; opacity:0.85;">'
                 . '<i class="fas fa-clock"></i> Diperiksa pada: <strong>' . $waktu . '</strong></div>'
                 . '</div>';
