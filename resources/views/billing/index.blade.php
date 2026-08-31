@@ -275,9 +275,153 @@
 
 		/* Status Colors */
 		.text-success { color: var(--success); }
-		.text-danger { color: var(--danger); }
+		.text-danger { color: var(--danger); font-weight: 700; }
 		.text-warning { color: var(--warning); }
 		.text-primary { color: var(--primary); }
+
+		/* Billing Result Card Formatting */
+		.billing-result-card {
+			background: #ffffff;
+			border: 1px solid #e2e8f0;
+			border-radius: var(--radius-md);
+			padding: 24px;
+			box-shadow: 0 10px 25px rgba(0, 0, 0, 0.04);
+		}
+		.billing-title {
+			font-size: 1.15rem;
+			font-weight: 700;
+			color: var(--secondary);
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			margin-bottom: 20px;
+			padding-bottom: 12px;
+			border-bottom: 2px solid #f1f5f9;
+		}
+		.billing-title i { color: var(--primary); }
+
+		.customer-info-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+			gap: 14px;
+			background: #f8fafc;
+			padding: 16px;
+			border-radius: var(--radius-sm);
+			border: 1px solid #e2e8f0;
+			margin-bottom: 20px;
+		}
+		.info-item {
+			display: flex;
+			flex-direction: column;
+			gap: 3px;
+		}
+		.info-label {
+			font-size: 0.75rem;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			color: var(--text-muted);
+		}
+		.info-value {
+			font-size: 0.95rem;
+			font-weight: 600;
+			color: var(--text-main);
+		}
+
+		.billing-table-wrapper {
+			overflow-x: auto;
+			margin-bottom: 20px;
+			border-radius: var(--radius-sm);
+			border: 1px solid #e2e8f0;
+		}
+		.billing-table {
+			width: 100%;
+			border-collapse: collapse;
+		}
+		.billing-table th {
+			background: #f1f5f9;
+			color: var(--text-muted);
+			font-size: 0.8rem;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			padding: 12px 16px;
+			border-bottom: 1px solid #e2e8f0;
+		}
+		.billing-table td {
+			padding: 14px 16px;
+			border-bottom: 1px solid #f1f5f9;
+			font-size: 0.95rem;
+		}
+		.tagihan-amount {
+			color: var(--danger);
+			font-weight: 700;
+		}
+		.billing-table tr.total-row {
+			background: #fff1f2;
+		}
+		.billing-table tr.total-row td {
+			border-top: 2px solid #fecdd3;
+			border-bottom: none;
+			padding: 16px;
+		}
+		.total-label {
+			font-weight: 700;
+			color: #9f1239;
+			font-size: 1rem;
+		}
+		.total-amount {
+			color: #e11d48;
+			font-weight: 800;
+			font-size: 1.2rem;
+		}
+
+		.payment-info-box {
+			background: #f8fafc;
+			border: 1px solid #e2e8f0;
+			border-radius: var(--radius-sm);
+			padding: 16px;
+			margin-top: 20px;
+		}
+		.payment-info-header {
+			font-weight: 700;
+			font-size: 0.875rem;
+			color: var(--secondary);
+			margin-bottom: 10px;
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+		.payment-info-header i { color: var(--primary); }
+		.payment-group {
+			font-size: 0.85rem;
+			margin-bottom: 6px;
+			line-height: 1.4;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 4px;
+		}
+		.payment-group:last-child { margin-bottom: 0; }
+		.pay-cat {
+			font-weight: 700;
+			color: #334155;
+			min-width: 100px;
+		}
+		.pay-list {
+			color: #64748b;
+			flex: 1;
+		}
+
+		.timestamp-footer {
+			margin-top: 16px;
+			padding-top: 12px;
+			border-top: 1px solid #f1f5f9;
+			font-size: 0.8rem;
+			color: var(--text-muted);
+			display: flex;
+			align-items: center;
+			gap: 6px;
+		}
 	</style>
 </head>
 <body>
@@ -310,6 +454,9 @@
 					</button>
 				</form>
 				<div id="result-container"></div>
+				<button type="button" class="btn btn-primary" id="btnReset" style="display: none; margin-top: 20px;">
+					<i class="fas fa-redo"></i> Cek Tagihan Rekening Lainnya
+				</button>
 			</div>
 
 			<div class="info-panel">
@@ -326,6 +473,7 @@
 				</a>
 			</div>
 		</div>
+
 	</div>
 
 	<footer>
@@ -336,6 +484,9 @@
 		$(document).ready(function() {
 			const inputEl = $('#nolangg');
 			const inputGroup = $('#inputGroup');
+			const billingForm = $('#billingForm');
+			const resultContainer = $('#result-container');
+			const btnReset = $('#btnReset');
 
 			// Restrict input to 8 digits and numbers only
 			inputEl.on('input', function() {
@@ -352,7 +503,7 @@
 				}
 			});
 
-			$('#billingForm').on('submit', function(e) {
+			billingForm.on('submit', function(e) {
 				e.preventDefault();
 				const customerNumber = inputEl.val();
 				const token = $('input[name="_token"]').val();
@@ -363,7 +514,7 @@
 				}
 
 				$('#ajax_loader').addClass('active');
-				$('#result-container').html('');
+				resultContainer.html('');
 
 				$.ajax({
 					type: 'POST',
@@ -374,11 +525,13 @@
 						setTimeout(() => { // slight delay for smooth animation
 							$('#ajax_loader').removeClass('active');
 							if (response.status === 'error') {
-								$('#result-container').html(response.message || `<div class="alert alert-danger"><i class="fas fa-times-circle"></i> Terjadi kesalahan.</div>`);
+								resultContainer.html(response.message || `<div class="alert alert-danger"><i class="fas fa-times-circle"></i> Terjadi kesalahan.</div>`);
 							} else {
 								// Success message structure is already formatted in the service
-								$('#result-container').html(response.message);
+								resultContainer.html(response.message);
 							}
+							billingForm.hide();
+							btnReset.show();
 						}, 300);
 					},
 					error: function(jqXHR, textStatus, errorThrown) {
@@ -386,11 +539,21 @@
 						const errorMsg = jqXHR.responseJSON?.message ||
 										 textStatus ||
 										 'Terjadi kesalahan koneksi ke server';
-						$('#result-container').html(
+						resultContainer.html(
 							`<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${errorMsg}</div>`
 						);
+						billingForm.hide();
+						btnReset.show();
 					}
 				});
+			});
+
+			btnReset.on('click', function() {
+				resultContainer.html('');
+				btnReset.hide();
+				billingForm.show();
+				inputEl.val('').focus();
+				inputGroup.removeClass('input-error');
 			});
 		});
 	</script>

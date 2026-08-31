@@ -118,36 +118,51 @@ class BillingController extends Controller
      */
     private function renderBillingTable(array $data): string
     {
-        $html = '<div class="alert alert-info"><h4><i class="fas fa-receipt"></i> Detail Tagihan</h4>';
-
-        // Customer info
         $c = $data['customer'] ?? [];
-        $html .= '<p><strong>Nomor Pelanggan:</strong> ' . ($c['nomor'] ?? '-') . '</p>';
-        $html .= '<p><strong>Nama:</strong> ' . ($c['nama'] ?? '-') . '</p>';
-        $html .= '<p><strong>Alamat:</strong> ' . ($c['alamat'] ?? '-') . '</p>';
-        $html .= '<p><strong>Status:</strong> <span class="' . ($c['status_info']['class'] ?? 'text-secondary') . '">' . ($c['status_info']['description'] ?? '-') . '</span></p>';
+        $waktu = $this->formatWaktuIndonesia();
 
-        // Periods table
-        $html .= '<table class="table mt-3">';
-        $html .= '<thead><tr><th>Periode</th><th>M3</th><th>Tagihan</th></tr></thead><tbody>';
+        $html = '<div class="billing-result-card">';
+        
+        // Header Title
+        $html .= '<div class="billing-title"><i class="fas fa-file-invoice-dollar"></i> Detail Tagihan Pelanggan</div>';
+
+        // Customer Info Grid
+        $html .= '<div class="customer-info-grid">';
+        $html .= '<div class="info-item"><span class="info-label">Nomor Pelanggan</span><span class="info-value">' . htmlspecialchars($c['nomor'] ?? '-') . '</span></div>';
+        $html .= '<div class="info-item"><span class="info-label">Nama Pelanggan</span><span class="info-value">' . htmlspecialchars($c['nama'] ?? '-') . '</span></div>';
+        $html .= '<div class="info-item"><span class="info-label">Alamat</span><span class="info-value">' . htmlspecialchars($c['alamat'] ?? '-') . '</span></div>';
+        $html .= '<div class="info-item"><span class="info-label">Status</span><span class="info-value ' . ($c['status_info']['class'] ?? 'text-secondary') . '"><i class="fas fa-check-circle"></i> ' . htmlspecialchars($c['status_info']['description'] ?? '-') . '</span></div>';
+        $html .= '</div>';
+
+        // Periods Table
+        $html .= '<div class="billing-table-wrapper">';
+        $html .= '<table class="billing-table">';
+        $html .= '<thead><tr><th>Periode</th><th style="text-align:center;">M³</th><th style="text-align:right;">Tagihan</th></tr></thead><tbody>';
 
         foreach ($data['periods'] ?? [] as $p) {
             $html .= '<tr>';
-            $html .= '<td>' . ($p['periode'] ?? '-') . '</td>';
-            $html .= '<td>' . ($p['m3'] ?? '-') . '</td>';
-            $html .= '<td><strong>' . ($p['tagihan_format'] ?? '0') . '</strong></td>';
+            $html .= '<td>' . htmlspecialchars($p['periode'] ?? '-') . '</td>';
+            $html .= '<td style="text-align:center;">' . htmlspecialchars($p['m3'] ?? '-') . '</td>';
+            $html .= '<td style="text-align:right;" class="tagihan-amount">Rp. ' . ($p['tagihan_format'] ?? '0') . '</td>';
             $html .= '</tr>';
         }
 
         $html .= '</tbody>';
-        $html .= '<tfoot><tr><td colspan="3">Total: <strong>' . ($data['total_format'] ?? '0') . '</strong></td></tr></tfoot>';
+        $html .= '<tfoot><tr class="total-row"><td colspan="2" class="total-label">Total Tagihan</td><td style="text-align:right;" class="total-amount">Rp. ' . ($data['total_format'] ?? '0') . '</td></tr></tfoot>';
         $html .= '</table>';
-
-        // Waktu pengecekan — terpisah dari data pelanggan
-        $waktu = $this->formatWaktuIndonesia();
-        $html .= '<div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border); font-size:0.85rem; color:var(--text-muted);">';
-        $html .= '<i class="fas fa-clock"></i> Diperiksa pada: <strong>' . $waktu . '</strong>';
         $html .= '</div>';
+
+        // Informasi Loket / Kanal Pembayaran Resmi
+        $html .= '<div class="payment-info-box">';
+        $html .= '<div class="payment-info-header"><i class="fas fa-store-alt"></i> Tempat & Loket Pembayaran Resmi</div>';
+        $html .= '<div class="payment-group"><span class="pay-cat">Bank:</span><span class="pay-list">BNI, BRI, BTN, BSI, Bank Jateng, BPRS BMP, BPR BKK, KB Bank</span></div>';
+        $html .= '<div class="payment-group"><span class="pay-cat">E-Wallet:</span><span class="pay-list">GoPay, OVO, DANA, LinkAja, ShopeePay, Flip, KIPO</span></div>';
+        $html .= '<div class="payment-group"><span class="pay-cat">Marketplace:</span><span class="pay-list">Shopee, Tokopedia, Bukalapak, Blibli</span></div>';
+        $html .= '<div class="payment-group"><span class="pay-cat">Gerai & Pos:</span><span class="pay-list">Alfamart, Indomaret, & PT Pos Indonesia</span></div>';
+        $html .= '</div>';
+
+        // Timestamp Footer
+        $html .= '<div class="timestamp-footer"><i class="fas fa-clock"></i> Diperiksa pada: <strong>' . $waktu . '</strong></div>';
 
         $html .= '</div>';
 
