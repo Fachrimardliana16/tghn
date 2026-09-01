@@ -136,20 +136,24 @@ class BillingSoapService
         }
 
         // Jika $result berupa object (misal stdClass dari SoapClient)
-        if (is_object($result)) {
+        if (is_object($result) || is_array($result)) {
             $array = json_decode(json_encode($result), true);
-            $mTagihan = $array['mTagihan'] ?? null;
+            $mTagihan = $array['mTagihan'] ?? $array['TAGIHAN'] ?? $array['tagihan'] ?? null;
+
             if (is_array($mTagihan)) {
-                $totalTagihan = floatval($mTagihan['TotalTagihan'] ?? $mTagihan['totalTagihan'] ?? 0);
-                if ($totalTagihan <= 0) {
+                // Jika $mTagihan adalah array 1 elemen (asosiatif), ubah jadi list
+                $mTagihanList = (isset($mTagihan[0]) && is_array($mTagihan[0])) ? $mTagihan : [$mTagihan];
+
+                if (empty($mTagihanList)) {
                     return ['type' => 'lunas', 'customer_id' => $customerId];
                 }
 
+                $first = $mTagihanList[0];
                 $customer = [
-                    'nomor'  => (string) ($mTagihan['NoLangganan'] ?? $customerId),
-                    'nama'   => (string) ($mTagihan['Nama'] ?? ''),
-                    'alamat' => (string) ($mTagihan['Alamat'] ?? ''),
-                    'status' => (string) ($mTagihan['Status'] ?? ''),
+                    'nomor'  => (string) ($first['NoLangganan'] ?? $first['noLangganan'] ?? $first['NOLANGG'] ?? $customerId),
+                    'nama'   => (string) ($first['Nama'] ?? $first['nama'] ?? $first['NAMA'] ?? ''),
+                    'alamat' => (string) ($first['Alamat'] ?? $first['alamat'] ?? $first['ALAMAT'] ?? ''),
+                    'status' => (string) ($first['Status'] ?? $first['status'] ?? $first['STATUS'] ?? ''),
                 ];
 
                 if ($customer['nama']) {
@@ -159,22 +163,33 @@ class BillingSoapService
                 $customer['status_info'] = self::STATUS_MAP[$customer['status']]
                     ?? ['description' => 'Tidak Diketahui', 'class' => 'text-secondary'];
 
-                $periode = (string) ($mTagihan['Periode'] ?? '');
-                $m3      = (string) ($mTagihan['M3'] ?? '');
+                $periods = [];
+                $totalSum = 0.0;
 
-                $periods = [[
-                    'periode'        => $this->formatPeriode($periode),
-                    'm3'             => $m3,
-                    'tagihan'        => $totalTagihan,
-                    'tagihan_format' => number_format($totalTagihan, 0, ',', '.'),
-                ]];
+                foreach ($mTagihanList as $item) {
+                    $itemTotal = floatval($item['TotalTagihan'] ?? $item['totalTagihan'] ?? $item['TOTALTAGIHANPLUSDENDA'] ?? $item['totaltagihanplusdenda'] ?? $item['Tagihan'] ?? 0);
+                    $periode   = (string) ($item['Periode'] ?? $item['periode'] ?? $item['PERIODE'] ?? '');
+                    $m3        = (string) ($item['M3'] ?? $item['m3'] ?? '');
+
+                    $totalSum += $itemTotal;
+                    $periods[] = [
+                        'periode'        => $this->formatPeriode($periode),
+                        'm3'             => $m3,
+                        'tagihan'        => $itemTotal,
+                        'tagihan_format' => number_format($itemTotal, 0, ',', '.'),
+                    ];
+                }
+
+                if ($totalSum <= 0) {
+                    return ['type' => 'lunas', 'customer_id' => $customerId];
+                }
 
                 return [
                     'type'         => 'tagihan',
                     'customer'     => $customer,
                     'periods'      => $periods,
-                    'total'        => $totalTagihan,
-                    'total_format' => number_format($totalTagihan, 0, ',', '.'),
+                    'total'        => $totalSum,
+                    'total_format' => number_format($totalSum, 0, ',', '.'),
                 ];
             }
         }
@@ -210,7 +225,7 @@ class BillingSoapService
 
         // Jika tidak ditemukan atau kosong → cek database untuk membedakan lunas vs tidak terdaftar
         // Cek khusus: jika result hanya berisi tag self-closing kosong <getListTagihanResult />
-        $resultXml = trim($result->asXML());
+        $resultXml = trim($result ? $result->asXML() : '');
         if ($result === null || $resultXml === '' || $resultXml === '<getListTagihanResult />' || $resultXml === '<getListTagihanResult/>') {
             // API return kosong: cek database untuk membedakan lunas vs tidak terdaftar
             $isRegistered = $this->isCustomerRegisteredInDatabase($customerId);
@@ -224,16 +239,8 @@ class BillingSoapService
             }
         }
 
-        // Parse inner XML dari result menggunakan SimpleXML (robust, tag-based)
-        // Gunakan $result->children()->asXML() untuk mempertahankan struktur element
-        $innerXml = simplexml_load_string('<root>' . $result->children()->asXML() . '</root>');
-
-        if ($innerXml === false) {
-            Log::error('Failed to parse inner XML from SOAP response');
-            return ['type' => 'system_error', 'message' => 'Gagal memproses respons server SOAP.'];
-        }
-
-        return $this->extractData($innerXml, $customerId);
+        // Extrak data langsung dari elemen result tanpa membuang node anak
+        return $this->extractData($result, $customerId);
     }
 
     /**
@@ -257,44 +264,69 @@ class BillingSoapService
      */
     private function extractData(\SimpleXMLElement $xml, string $customerId): array
     {
-        // Coba baca struktur BARU: data langsung di <mTagihan>
-        $mTagihan = $xml->mTagihan ?? $xml->children('', true)->mTagihan ?? null;
+        // Kumpulkan semua node tagihan yang ada (<mTagihan>, <TAGIHAN>, <tagihan>)
+        $nodes = [];
 
-        $customer = [];
-        $periods  = [];
-        $total    = 0.0;
+        if (isset($xml->mTagihan)) {
+            foreach ($xml->mTagihan as $node) {
+                $nodes[] = $node;
+            }
+        } elseif (isset($xml->children('', true)->mTagihan)) {
+            foreach ($xml->children('', true)->mTagihan as $node) {
+                $nodes[] = $node;
+            }
+        } elseif (isset($xml->TAGIHAN)) {
+            foreach ($xml->TAGIHAN as $node) {
+                $nodes[] = $node;
+            }
+        } elseif (isset($xml->tagihan)) {
+            foreach ($xml->tagihan as $node) {
+                $nodes[] = $node;
+            }
+        }
 
-        if ($mTagihan !== null) {
-            // Struktur BARU: nama tag di dalam <mTagihan>
-            $customer['nomor']   = (string) ($mTagihan->NoLangganan   ?? $mTagihan->noLangganan   ?? $customerId);
-            $customer['nama']    = (string) ($mTagihan->Nama       ?? $mTagihan->nama       ?? '');
-            $customer['alamat']  = (string) ($mTagihan->Alamat     ?? $mTagihan->alamat     ?? '');
-            $customer['status']  = (string) ($mTagihan->Status     ?? $mTagihan->status     ?? '');
+        // Jika tidak ketemu di level atas, cari secara rekursif anak bernamasama
+        if (empty($nodes)) {
+            foreach ($xml->children() as $child) {
+                $name = strtolower($child->getName());
+                if ($name === 'mtagihan' || $name === 'tagihan') {
+                    $nodes[] = $child;
+                }
+            }
+        }
 
-            // Masking nama
+        if (!empty($nodes)) {
+            $first = $nodes[0];
+            $customer = [
+                'nomor'   => (string) ($first->NoLangganan ?? $first->noLangganan ?? $first->NOLANGG ?? $xml->NOLANGG ?? $xml->nolangg ?? $customerId),
+                'nama'    => (string) ($first->Nama ?? $first->nama ?? $first->NAMA ?? $xml->NAMA ?? $xml->nama ?? ''),
+                'alamat'  => (string) ($first->Alamat ?? $first->alamat ?? $first->ALAMAT ?? $xml->ALAMAT ?? $xml->alamat ?? ''),
+                'status'  => (string) ($first->Status ?? $first->status ?? $first->STATUS ?? $xml->STATUS ?? $xml->status ?? ''),
+            ];
+
             if ($customer['nama']) {
                 $customer['nama'] = $this->maskName($customer['nama']);
             }
-
-            // Status info
             $customer['status_info'] = self::STATUS_MAP[$customer['status']]
                 ?? ['description' => 'Tidak Diketahui', 'class' => 'text-secondary'];
 
-            // Ambil periode dan tagihan dari <mTagihan>
-            $periode = (string) ($mTagihan->Periode ?? $mTagihan->periode ?? '');
-            $tagihan = floatval((string) ($mTagihan->TotalTagihan ?? $mTagihan->totalTagihan ?? $mTagihan->TotalTagihan ?? 0));
-            $m3      = (string) ($mTagihan->M3      ?? $mTagihan->m3      ?? '');
+            $periods = [];
+            $total = 0.0;
 
-            $total += $tagihan;
+            foreach ($nodes as $node) {
+                $tagihan = floatval((string) ($node->TotalTagihan ?? $node->totalTagihan ?? $node->TOTALTAGIHANPLUSDENDA ?? $node->totaltagihanplusdenda ?? $node->Tagihan ?? 0));
+                $periode = (string) ($node->Periode ?? $node->periode ?? $node->PERIODE ?? '');
+                $m3      = (string) ($node->M3 ?? $node->m3 ?? '');
 
-            $periods[] = [
-                'periode'         => $this->formatPeriode($periode),
-                'm3'              => $m3,
-                'tagihan'         => $tagihan,
-                'tagihan_format'  => number_format($tagihan, 0, ',', '.'),
-            ];
+                $total += $tagihan;
+                $periods[] = [
+                    'periode'        => $this->formatPeriode($periode),
+                    'm3'             => $m3,
+                    'tagihan'        => $tagihan,
+                    'tagihan_format' => number_format($tagihan, 0, ',', '.'),
+                ];
+            }
 
-            // Cek lunas
             if ($total <= 0) {
                 return ['type' => 'lunas', 'customer_id' => $customerId];
             }
@@ -308,50 +340,7 @@ class BillingSoapService
             ];
         }
 
-        // Struktur LAMA: tag TAGIHAN berulang
-        $customer = [
-            'nomor'   => (string) ($xml->NOLANGG   ?? $xml->nolangg   ?? $customerId),
-            'nama'    => (string) ($xml->NAMA       ?? $xml->nama       ?? ''),
-            'alamat'  => (string) ($xml->ALAMAT     ?? $xml->alamat     ?? ''),
-            'status'  => (string) ($xml->STATUS     ?? $xml->status     ?? ''),
-        ];
-
-        if ($customer['nama']) {
-            $customer['nama'] = $this->maskName($customer['nama']);
-        }
-        $customer['status_info'] = self::STATUS_MAP[$customer['status']]
-            ?? ['description' => 'Tidak Diketahui', 'class' => 'text-secondary'];
-
-        // Kumpulkan data per periode
-        foreach ($xml->TAGIHAN ?? $xml->tagihan ?? [] as $row) {
-            $tagihan = floatval((string) ($row->TOTALTAGIHANPLUSDENDA ?? $row->totaltagihanplusdenda ?? 0));
-            $periode = (string) ($row->PERIODE ?? $row->periode ?? '');
-            $m3      = (string) ($row->M3      ?? $row->m3      ?? '');
-
-            $total += $tagihan;
-            $periods[] = [
-                'periode'         => $this->formatPeriode($periode),
-                'm3'              => $m3,
-                'tagihan'         => $tagihan,
-                'tagihan_format'  => number_format($tagihan, 0, ',', '.'),
-            ];
-        }
-
-        if ($total <= 0 && count($periods) === 0) {
-            return ['type' => 'lunas', 'customer_id' => $customerId];
-        }
-
-        if ($total <= 0) {
-            return ['type' => 'lunas', 'customer_id' => $customerId];
-        }
-
-        return [
-            'type'          => 'tagihan',
-            'customer'      => $customer,
-            'periods'       => $periods,
-            'total'         => $total,
-            'total_format'  => number_format($total, 0, ',', '.'),
-        ];
+        return ['type' => 'lunas', 'customer_id' => $customerId];
     }
 
     private function formatPeriode(string $periode): string
