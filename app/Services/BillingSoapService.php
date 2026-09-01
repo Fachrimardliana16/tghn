@@ -167,7 +167,7 @@ class BillingSoapService
                 $totalSum = 0.0;
 
                 foreach ($mTagihanList as $item) {
-                    $itemTotal = floatval($item['TotalTagihan'] ?? $item['totalTagihan'] ?? $item['TOTALTAGIHANPLUSDENDA'] ?? $item['totaltagihanplusdenda'] ?? $item['Tagihan'] ?? 0);
+                    $itemTotal = floatval($item['TotalTagihanPlusDenda'] ?? $item['totaltagihanplusdenda'] ?? $item['TOTALTAGIHANPLUSDENDA'] ?? $item['TotalTagihan'] ?? $item['totalTagihan'] ?? $item['Tagihan'] ?? 0);
                     $periode   = (string) ($item['Periode'] ?? $item['periode'] ?? $item['PERIODE'] ?? '');
                     $m3        = (string) ($item['M3'] ?? $item['m3'] ?? '');
 
@@ -314,7 +314,7 @@ class BillingSoapService
             $total = 0.0;
 
             foreach ($nodes as $node) {
-                $tagihan = floatval((string) ($node->TotalTagihan ?? $node->totalTagihan ?? $node->TOTALTAGIHANPLUSDENDA ?? $node->totaltagihanplusdenda ?? $node->Tagihan ?? 0));
+                $tagihan = floatval((string) ($node->TotalTagihanPlusDenda ?? $node->totaltagihanplusdenda ?? $node->TOTALTAGIHANPLUSDENDA ?? $node->TotalTagihan ?? $node->totalTagihan ?? $node->Tagihan ?? 0));
                 $periode = (string) ($node->Periode ?? $node->periode ?? $node->PERIODE ?? '');
                 $m3      = (string) ($node->M3 ?? $node->m3 ?? '');
 
