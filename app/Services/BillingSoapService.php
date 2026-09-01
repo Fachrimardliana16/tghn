@@ -99,7 +99,7 @@ class BillingSoapService
 
         } catch (Exception $e) {
             Log::error('Billing check error [' . $customerId . ']: ' . $e->getMessage());
-            return ['type' => 'system_error', 'message' => $e->getMessage()];
+            return ['type' => 'system_error', 'message' => 'Layanan tagihan tidak dapat dihubungi. Silakan coba beberapa saat lagi.'];
         }
     }
 

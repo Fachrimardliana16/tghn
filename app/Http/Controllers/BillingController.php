@@ -24,16 +24,24 @@ class BillingController extends Controller
 
     public function check(Request $request)
     {
-        // Validasi: wajib 8 digit angka
-        if (!$request->has('nolangg') || !preg_match('/^\d{8}$/', $request->input('nolangg'))) {
+        // Validasi Keamanan Input: Wajib string 8 digit angka
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'nolangg' => ['required', 'string', 'regex:/^\d{8}$/'],
+        ], [
+            'nolangg.required' => 'Nomor Pelanggan harus diisi.',
+            'nolangg.string'   => 'Format Nomor Pelanggan tidak valid.',
+            'nolangg.regex'    => 'Nomor Pelanggan harus berupa 8 digit angka.',
+        ]);
+
+        if ($validator->fails()) {
             return response()->json([
                 'type'    => 'validation_error',
                 'status'  => 'error',
-                'message' => 'Nomor Pelanggan harus berupa 8 digit angka.',
-            ]);
+                'message' => $validator->errors()->first('nolangg'),
+            ], 422);
         }
 
-        $customerId = $request->input('nolangg');
+        $customerId = (string) $request->input('nolangg');
         $cacheKey   = 'billing_' . $customerId;
 
         // 1. Ambil data dari cache jika ada
