@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Services\BillingSoapService;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use App\Models\CheckHistory;
 
 class BillingController extends Controller
 {
@@ -50,6 +52,19 @@ class BillingController extends Controller
         // 3. Tangani error sistem jika terjadi
         if (!is_array($data) || ($data['type'] ?? '') === 'system_error') {
             Cache::forget($cacheKey);
+
+            // Simpan histori error sistem jika perlu
+            try {
+                CheckHistory::create([
+                    'nolang'     => $customerId,
+                    'status'     => 'system_error',
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            } catch (\Throwable $th) {
+                Log::warning('Failed to log check history: ' . $th->getMessage());
+            }
+
             return response()->json([
                 'type'    => 'system_error',
                 'status'  => 'error',
@@ -57,7 +72,21 @@ class BillingController extends Controller
             ]);
         }
 
-        // 4. Format response untuk frontend Blade template
+        // 4. Simpan ke database histori pencarian
+        try {
+            CheckHistory::create([
+                'nolang'         => $customerId,
+                'status'         => $data['type'] ?? 'unknown',
+                'nama_pelanggan' => $data['customer']['nama'] ?? null,
+                'total_tagihan'  => $data['total'] ?? null,
+                'ip_address'     => $request->ip(),
+                'user_agent'     => $request->userAgent(),
+            ]);
+        } catch (\Throwable $th) {
+            Log::warning('Failed to log check history: ' . $th->getMessage());
+        }
+
+        // 5. Format response untuk frontend Blade template
         $response = [
             'status' => 'success',
         ];
@@ -74,7 +103,7 @@ class BillingController extends Controller
             $response['type'] = 'not_found';
             $waktu = $this->formatWaktuIndonesia();
             $response['message'] = '<div class="alert alert-danger">'
-                . '<i class="fas fa-times-circle"></i> Nomor pelanggan tidak ditemukan atau sudah lunas. Jika yakin nomor benar, silakan hubungi kami.'
+                . '<i class="fas fa-times-circle"></i> Tagihan <strong>' . htmlspecialchars($data['customer_id'] ?? $customerId) . '</strong> tidak ditemukan. Mohon periksa kembali nomor Anda atau tagihan mungkin sudah lunas.'
                 . '<div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(0,0,0,0.1); font-size:0.85rem; opacity:0.85;">'
                 . '<i class="fas fa-clock"></i> Diperiksa pada: <strong>' . $waktu . '</strong></div>'
                 . '</div>';
@@ -124,7 +153,7 @@ class BillingController extends Controller
         $html = '<div class="billing-result-card">';
         
         // Header Title
-        $html .= '<div class="billing-title"><i class="fas fa-file-invoice-dollar"></i> Detail Tagihan Pelanggan</div>';
+        $html .= '<div class="billing-title"> Detail Tagihan Pelanggan</div>';
 
         // Customer Info Grid
         $html .= '<div class="customer-info-grid">';

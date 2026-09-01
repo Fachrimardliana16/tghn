@@ -49,13 +49,89 @@
 			overflow-x: hidden;
 		}
 
+		/* Water Overlay Background (Subtle Water Texture) */
+		.water-bg-overlay {
+			position: fixed;
+			top: 0; left: 0; width: 100%; height: 100%;
+			pointer-events: none;
+			z-index: -1;
+			opacity: 0.18;
+			background-image: 
+				radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.3) 0%, transparent 40%),
+				radial-gradient(circle at 80% 70%, rgba(37, 99, 235, 0.2) 0%, transparent 45%),
+				url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%230284c7' fill-opacity='0.6' d='M0,192L48,197.3C96,203,192,213,288,197.3C384,181,480,139,576,138.7C672,139,768,181,864,197.3C960,213,1056,203,1152,186.7C1248,171,1344,149,1392,138.7L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3Cpath fill='%230369a1' fill-opacity='0.4' d='M0,96L48,122.7C96,149,192,203,288,208C384,213,480,171,576,144C672,117,768,107,864,128C960,149,1056,203,1152,213.3C1248,224,1344,192,1392,176L1440,160L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E");
+			background-repeat: repeat-x;
+			background-position: bottom center;
+			background-size: 1440px auto;
+		}
+
+		/* Header Section Redesign */
+		.header-container {
+			text-align: center;
+			margin-bottom: 36px;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 12px;
+		}
+		.header-badge {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+		}
+		.water-drop-icon {
+			width: 56px;
+			height: 56px;
+			background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+			color: #ffffff;
+			border-radius: 50%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 1.6rem;
+			box-shadow: 0 10px 20px rgba(2, 132, 199, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.4);
+			animation: floatIcon 4s ease-in-out infinite;
+		}
+		@keyframes floatIcon {
+			0%, 100% { transform: translateY(0px) scale(1); }
+			50% { transform: translateY(-6px) scale(1.05); }
+		}
+		.header-title {
+			font-size: 2.3rem;
+			font-weight: 800;
+			letter-spacing: -0.5px;
+			background: linear-gradient(135deg, #0f172a 0%, #1e40af 100%);
+			-webkit-background-clip: text;
+			-webkit-text-fill-color: transparent;
+			margin: 0;
+			line-height: 1.2;
+		}
+		.header-subtitle {
+			display: inline-flex;
+			align-items: center;
+			gap: 8px;
+			padding: 8px 20px;
+			background: rgba(255, 255, 255, 0.85);
+			backdrop-filter: blur(12px);
+			-webkit-backdrop-filter: blur(12px);
+			border: 1px solid rgba(255, 255, 255, 0.9);
+			border-radius: 30px;
+			font-size: 0.95rem;
+			font-weight: 600;
+			color: #0369a1;
+			box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+		}
+		.header-subtitle i {
+			color: #0284c7;
+		}
+
 		/* Background Animation */
 		body::before {
 			content: '';
 			position: fixed;
 			top: -50%; left: -50%;
 			width: 200%; height: 200%;
-			background: radial-gradient(circle, rgba(56,189,248,0.1) 0%, rgba(255,255,255,0) 50%);
+			background: radial-gradient(circle, rgba(56,189,248,0.12) 0%, rgba(255,255,255,0) 50%);
 			animation: rotateBackground 30s linear infinite;
 			z-index: -1;
 		}
@@ -425,6 +501,7 @@
 	</style>
 </head>
 <body>
+	<div class="water-bg-overlay"></div>
 
 	<div class="loader-overlay" id="ajax_loader">
 		<div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
@@ -434,14 +511,21 @@
 	</div>
 
 	<div class="container">
-		<div style="text-align: center; margin-bottom: 40px;">
-			<h1>PERUMDAM Tirta Perwira</h1>
-			<p style="font-size: 1.1rem; color: var(--text-main);">Layanan Pengecekan Tagihan Rekening Pelanggan</p>
+		<div class="header-container">
+			<div class="header-badge">
+				<div class="water-drop-icon">
+					<i class="fas fa-droplet"></i>
+				</div>
+			</div>
+			<h1 class="header-title">PERUMDAM Tirta Perwira</h1>
+			<div class="header-subtitle">
+				Layanan Pengecekan Tagihan Rekening Pelanggan
+			</div>
 		</div>
 
 		<div class="glass-card">
 			<div class="main-panel">
-				<h2>Cek Tagihan Anda</h2>
+				<h2>Cek Tagihan Rekening Air Anda</h2>
 				<form id="billingForm" method="POST">
 					@csrf
 					<div class="input-group" id="inputGroup">
