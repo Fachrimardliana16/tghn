@@ -42,6 +42,8 @@ class UserController extends Controller
         $user->name = $validated['name'];
         $user->email = $validated['email'];
         $user->password = Hash::make($validated['password']);
+        $user->email_verified_at = now();
+        $user->is_admin = true;
         $user->save();
 
         return Redirect::route('admin.users.index')->with('message', 'User created successfully.');
