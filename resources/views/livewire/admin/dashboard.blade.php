@@ -15,6 +15,102 @@
                         </svg>
                         Refresh
                     </button>
+                    <!-- Settings Dropdown -->
+                    <div class="relative inline-block text-left"
+                         x-data="{
+                             open: false,
+                             isDark: localStorage.getItem('theme') === 'dark',
+                             toggleTheme() {
+                                 this.isDark = !this.isDark;
+                                 const theme = this.isDark ? 'dark' : 'light';
+                                 document.documentElement.dataset.theme = theme;
+                                 localStorage.setItem('theme', theme);
+                             }
+                         }">
+                        <button @click="open = !open" class="px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl hover:from-gray-700 hover:to-gray-800 transition-all shadow-lg hover:shadow-xl flex items-center">
+                            <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                            Settings
+                        </button>
+
+                        <div x-show="open"
+                             @click.away="open = false"
+                             x-transition:enter="transition ease-out duration-150"
+                             x-transition:enter-start="opacity-0 scale-95"
+                             x-transition:enter-end="opacity-100 scale-100"
+                             x-transition:leave="transition ease-in duration-100"
+                             x-transition:leave-start="opacity-100 scale-100"
+                             x-transition:leave-end="opacity-0 scale-95"
+                             class="origin-top-right absolute right-0 mt-2 w-64 rounded-2xl shadow-xl bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-50 overflow-hidden"
+                             style="display:none;">
+                            <div class="py-2" role="menu">
+
+                                <!-- Theme Toggle -->
+                                <div class="px-4 py-3 border-b border-gray-100">
+                                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Tampilan</p>
+                                    <div class="flex items-center justify-between">
+
+                                        <!-- Label -->
+                                        <span class="text-sm font-semibold text-gray-700"
+                                              x-text="isDark ? 'Mode Gelap' : 'Mode Terang'">
+                                        </span>
+
+                                        <!-- Toggle Switch -->
+                                        <button @click="toggleTheme()"
+                                                class="relative flex-shrink-0 w-16 h-8 rounded-full focus:outline-none"
+                                                :class="isDark ? 'bg-gray-700' : 'bg-gray-200'"
+                                                style="box-shadow: inset 2px 2px 5px rgba(0,0,0,0.2), inset -2px -2px 5px rgba(255,255,255,0.6);"
+                                                aria-label="Toggle theme">
+
+                                            <!-- Sun icon (left, visible in light mode) -->
+                                            <span class="absolute left-1.5 top-1/2 -translate-y-1/2 transition-opacity duration-300"
+                                                  :class="isDark ? 'opacity-20' : 'opacity-100'">
+                                                <svg class="w-4 h-4 text-yellow-400" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M12 17a5 5 0 100-10 5 5 0 000 10zm0 2a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zm0-16a1 1 0 011 1v1a1 1 0 11-2 0V4a1 1 0 011-1zm8 8a1 1 0 110 2h-1a1 1 0 110-2h1zM5 12a1 1 0 110 2H4a1 1 0 110-2h1zm13.66-5.66a1 1 0 010 1.42l-.71.7a1 1 0 11-1.41-1.41l.7-.71a1 1 0 011.42 0zM7.05 17.66a1 1 0 010 1.41l-.71.71a1 1 0 11-1.41-1.41l.71-.71a1 1 0 011.41 0zm11.32 0l-.71.71a1 1 0 11-1.41-1.41l.71-.71a1 1 0 011.41 1.41zM5.66 6.34a1 1 0 011.41 0l.71.71A1 1 0 116.37 8.46l-.71-.71a1 1 0 010-1.41z"/>
+                                                </svg>
+                                            </span>
+
+                                            <!-- Moon icon (right, visible in dark mode) -->
+                                            <span class="absolute right-1.5 top-1/2 -translate-y-1/2 transition-opacity duration-300"
+                                                  :class="isDark ? 'opacity-100' : 'opacity-20'">
+                                                <svg class="w-4 h-4 text-blue-300" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                                                </svg>
+                                            </span>
+
+                                            <!-- Knob -->
+                                            <span class="absolute top-1 w-6 h-6 rounded-full transition-all duration-300"
+                                                  :class="isDark
+                                                      ? 'left-8 bg-gray-900'
+                                                      : 'left-1 bg-gradient-to-br from-yellow-300 to-orange-400'"
+                                                  style="box-shadow: 2px 2px 6px rgba(0,0,0,0.3);">
+                                            </span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- User Management Link -->
+                                <div class="px-4 py-2">
+                                    <a href="{{ route('admin.users.index') }}"
+                                       class="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+                                       role="menuitem">
+                                        <div class="bg-indigo-100 rounded-lg p-1.5">
+                                            <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                                            </svg>
+                                        </div>
+                                        <span class="font-medium">User Management</span>
+                                        <svg class="w-4 h-4 text-gray-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                        </svg>
+                                    </a>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
                     <form action="{{ route('admin.logout') }}" method="POST">
                         @csrf
                         <button type="submit" class="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl hover:from-red-700 hover:to-red-800 transition-all shadow-lg hover:shadow-xl">
